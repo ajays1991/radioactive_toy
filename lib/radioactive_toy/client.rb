@@ -42,7 +42,7 @@ module RadioactiveToy
       ##code to read ruby version from .ruby_version
       repository_name = config["provider"]["repository_name"]
       aws_account_id = config["provider"]["aws_account_id"]
-      region = config["provider"]["aws_region"]
+      aws_region = config["provider"]["aws_region"]
       puts repository_name
       # var_hash = generate_secret_hash
 
