@@ -41,6 +41,8 @@ module RadioactiveToy
 
       ##code to read ruby version from .ruby_version
       repository_name = config["provider"]["repository_name"]
+      aws_account_id = config["provider"]["aws_account_id"]
+      region = config["provider"]["aws_region"]
       puts repository_name
       # var_hash = generate_secret_hash
 
@@ -96,20 +98,41 @@ module RadioactiveToy
       end
       # fetch a secret
       puts secrets
-      build_image(repository_name:repository_name, image_tag: "test", ruby_version: ruby_version)
+      build_image(repository_name:repository_name, image_tag: "latest", ruby_version: ruby_version)
+      #login_to_ecr(aws_account_id: aws_account_id, aws_region: aws_region)
+      create_ecr_repository(repository_name: repository_name, aws_region: aws_region)
+      tag_image(repository_name: repository_name, image_tag: image_tag, image_uri: image_uri)
     end
 
-    def create_ecr_repository
-      run!(<<~CMD)
-        aws ecr describe-repositories \
-        --repository-names #{@repository_name} \
-        --region #{@aws_region} \
-        >/dev/null 2>&1 || \
-        aws ecr create-repository \
-        --repository-name #{@repository_name} \
-        --region #{@aws_region}
-      CMD
+    def create_ecr_repository(repository_name:, aws_region:)
+      ecr = Aws::ECR::Client.new(region: aws_region)
+
+      begin
+        ecr.describe_repositories(
+          repository_names: [repository_name]
+        )
+
+        puts "Repository #{repository_name} already exists"
+      rescue Aws::ECR::Errors::RepositoryNotFoundException
+        ecr.create_repository(
+          repository_name: repository_name
+        )
+
+        puts "Repository #{repository_name} created"
+      end
     end
+
+    # def create_ecr_repository(repository_name:, aws_region:)
+    #   run!(<<~CMD)
+    #     aws ecr describe-repositories \
+    #     --repository-names #{repository_name} \
+    #     --region #{aws_region} \
+    #     >/dev/null 2>&1 || \
+    #     aws ecr create-repository \
+    #     --repository-name #{repository_name} \
+    #     --region #{aws_region}
+    #   CMD
+    # end
 
     def build_image(repository_name:, image_tag:, ruby_version:)
         puts "repository_name=#{repository_name.inspect}"
@@ -124,21 +147,22 @@ module RadioactiveToy
           .
       CMD
     end
-    def login_to_ecr
+
+    def login_to_ecr(aws_account_id:, aws_region:)
       run!(<<~CMD)
         aws ecr get-login-password \
-        --region #{@aws_region} | \
+        --region #{aws_region} | \
         docker login \
         --username AWS \
         --password-stdin \
-        #{@aws_account_id}.dkr.ecr.#{@aws_region}.amazonaws.com
+        #{aws_account_id}.dkr.ecr.#{aws_region}.amazonaws.com
       CMD
     end
 
-    def tag_image
+    def tag_image(repository_name:, image_tag:, image_uri:)
       run!(<<~CMD)
         docker tag \
-        #{@repository_name}:#{@image_tag} \
+        #{repository_name}:#{image_tag} \
         #{image_uri}
       CMD
     end
