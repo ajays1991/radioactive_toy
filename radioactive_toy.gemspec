@@ -47,4 +47,6 @@ Gem::Specification.new do |spec|
   spec.add_dependency "aws-sdk-applicationautoscaling"
   spec.add_dependency "kubeclient"
   spec.add_dependency "aws-sdk-eks"
+  spec.add_dependency "aws-sdk-rds"
+  spec.add_dependency "aws-sdk-elasticache"
 end
