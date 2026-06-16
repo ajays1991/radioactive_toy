@@ -4,7 +4,7 @@ module RadioactiveToy
 	class RdsProvisioner
 		attr_reader :ec_rds
 
-		def initialize(region:, rds_config:)
+		def initialize(region:, rds_config:, rds_secret:)
 			@ec_rds = Aws::RDS::Client.new(
 			  region: region)
 			@rds_config = rds_config

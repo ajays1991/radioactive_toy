@@ -129,6 +129,9 @@ module RadioactiveToy
         ]
       )
       puts "---------------------------Network #{result}"
+
+      ##create RDS
+      response = RadioactiveToy::RdsProvisioner.new(region: aws_region, rds_config: rds_config, rds_secret: rds_secret)
     end
 
     def create_ecr_repository(repository_name:, aws_region:)

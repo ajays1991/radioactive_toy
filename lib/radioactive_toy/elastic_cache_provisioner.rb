@@ -1,41 +1,31 @@
-require "aws-sdk-rds"
+require 'aws-sdk-elasticache'
 
 module RadioactiveToy
 	class ElasticCacheProvisioner
-		attr_reader :ec_rds
+		attr_reader :ec_elastic_cache
 
-		def initialize(region:, rds_config:)
-			@ec_rds = Aws::RDS::Client.new(
-			  region: region)
-			@rds_config = rds_config
+		def initialize(region:, elastic_cache_config:)
+			@ec_elastic_cache = Aws::ElastiCache::Client.new(
+			  region: region
+			)
+			@ec_elastic_cache_config = rds_config
 		end
 
 		def run
-			begin
-			  response = rds.create_db_instance(
-			    db_instance_identifier: 'my-rails-db',
-			    allocated_storage: rds_config["allocated_storage"],
-			    db_instance_class: 'db.t3.micro',
-			    engine: 'postgres',
-			    engine_version: '15.4',
-			    master_username: 'postgres',
-			    master_user_password: 'YourStrongPassword123!',
-			    db_name: 'myapp',
-			    publicly_accessible: false,
-			    storage_type: 'gp3',
-			    backup_retention_period: 7,
-			    multi_az: false,
-			    auto_minor_version_upgrade: true,
-			    deletion_protection: false,
-			    storage_encrypted: true
-			  )
-
-			  puts "RDS creation started"
-			  puts response.db_instance.db_instance_identifier
-
-			rescue Aws::RDS::Errors::ServiceError => e
-			  puts "Error: #{e.message}"
-			end
+			response = ec_elastic_cache.create_cache_cluster(
+			  cache_cluster_id: 'my-redis-cluster',
+			  engine: 'redis',
+			  cache_node_type: 'cache.t3.micro',
+			  num_cache_nodes: 1,
+			  port: 6379,
+			  tags: [
+			    {
+			      key: 'Name',
+			      value: 'my-redis-cluster'
+			    }
+			  ]
+			)
+			puts "---------------------#{response}-----------------------"
 		end
 
 		private
