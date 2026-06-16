@@ -43,6 +43,10 @@ module RadioactiveToy
       repository_name = config["provider"]["repository_name"]
       aws_account_id = config["provider"]["aws_account_id"]
       aws_region = config["provider"]["aws_region"]
+      image_tag = config["infra_config"]["image_tag"] || "latest"
+      ecr_uri = "#{aws_account_id}.dkr.ecr.#{aws_region}.amazonaws.com/#{repository_name}"
+      image_uri = "#{ecr_uri}:#{image_tag}"
+
       puts repository_name
       # var_hash = generate_secret_hash
 
@@ -98,10 +102,33 @@ module RadioactiveToy
       end
       # fetch a secret
       puts secrets
-      build_image(repository_name:repository_name, image_tag: "latest", ruby_version: ruby_version)
+      #build_image(repository_name:repository_name, image_tag: "latest", ruby_version: ruby_version)
       #login_to_ecr(aws_account_id: aws_account_id, aws_region: aws_region)
       create_ecr_repository(repository_name: repository_name, aws_region: aws_region)
       tag_image(repository_name: repository_name, image_tag: image_tag, image_uri: image_uri)
+      login_to_ecr(aws_account_id: aws_account_id, aws_region: aws_region)
+      push_image(image_uri: image_uri)
+      network = RadioactiveToy::NetworkProvisioner.new(
+        region: "ap-south-1"
+      )
+
+      result = network.create_network(
+        environment: "prod",
+        vpc_cidr: "10.0.0.0/16",
+        public_subnets_cidr: [
+          "10.0.1.0/24",
+          "10.0.2.0/24"
+        ],
+        private_subnets_cidr: [
+          "10.0.11.0/24",
+          "10.0.12.0/24"
+        ],
+        availability_zones: [
+          "ap-south-1a",
+          "ap-south-1b"
+        ]
+      )
+      puts "---------------------------Network #{result}"
     end
 
     def create_ecr_repository(repository_name:, aws_region:)
@@ -167,18 +194,10 @@ module RadioactiveToy
       CMD
     end
 
-    def push_image
+    def push_image(image_uri:)
       run!(<<~CMD)
         docker push #{image_uri}
       CMD
-    end
-
-     def ecr_uri
-      "#{@aws_account_id}.dkr.ecr.#{@aws_region}.amazonaws.com/#{@repository_name}"
-    end
-
-    def image_uri
-      "#{ecr_uri}:#{@image_tag}"
     end
 
     def run!(cmd)
@@ -205,9 +224,9 @@ module RadioactiveToy
       Rails.root.join("Dockerfile")
     end
 
-    def image_tag
-      @config["infra_config"]["image_tag"]
-    end
+    # def image_tag
+    #   @config["infra_config"]["image_tag"]
+    # end
 
     def generate_secret_hash(secrets)
       result = {}
