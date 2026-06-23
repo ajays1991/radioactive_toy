@@ -2,36 +2,29 @@ require "aws-sdk-ec2"
 
 module RadioactiveToy
 	class NetworkProvisioner
-		attr_reader :ec2
+		attr_reader :ec2, :environment, :network_config
 
-		def initialize(region:)
+		def initialize( environment:, network_config:, region:)
 			@ec2 = Aws::EC2::Client.new(region: region)
+			@environment = environment
+			@network_config = network_config
 		end
 
-		def create_network(
-			environment:,
-			vpc_cidr:,
-			public_subnets_cidr:,
-			private_subnets_cidr:,
-			availability_zones:
-			)
-			#
-			# VPC
-			#
+		def create_network
 			vpc = ec2.create_vpc(
-			  cidr_block: vpc_cidr
+			  cidr_block: network_config["vpc_cidr"]
 			)
 
 			vpc_id = vpc.vpc.vpc_id
 
 			ec2.modify_vpc_attribute(
 			  vpc_id: vpc_id,
-			  enable_dns_support: { value: true }
+			  enable_dns_support: { value: network_config["enable_dns_support"] }
 			)
 
 			ec2.modify_vpc_attribute(
 			  vpc_id: vpc_id,
-			  enable_dns_hostnames: { value: true }
+			  enable_dns_hostnames: { value: network_config["enable_dns_hostnames"] }
 			)
 
 			tag_resource(vpc_id,
@@ -58,11 +51,11 @@ module RadioactiveToy
 			#
 			# Public Subnets
 			#
-			public_subnet_ids = public_subnets_cidr.each_with_index.map do |cidr, index|
+			public_subnet_ids = network_config["public_subnets_cidr"].each_with_index.map do |cidr, index|
 			  subnet = ec2.create_subnet(
 			    vpc_id: vpc_id,
 			    cidr_block: cidr,
-			    availability_zone: availability_zones[index]
+			    availability_zone: network_config["availability_zones"][index]
 			  )
 
 			  subnet_id = subnet.subnet.subnet_id
@@ -75,7 +68,7 @@ module RadioactiveToy
 			  )
 
 			  tag_resource(subnet_id,
-			    "Name" => "#{environment}-#{availability_zones[index]}-public-subnet",
+			    "Name" => "#{environment}-#{network_config["availability_zones"]}-public-subnet",
 			    "Environment" => environment
 			  )
 
@@ -85,17 +78,17 @@ module RadioactiveToy
 			#
 			# Private Subnets
 			#
-			private_subnet_ids = private_subnets_cidr.each_with_index.map do |cidr, index|
+			private_subnet_ids = network_config["private_subnets_cidr"].each_with_index.map do |cidr, index|
 			  subnet = ec2.create_subnet(
 			    vpc_id: vpc_id,
 			    cidr_block: cidr,
-			    availability_zone: availability_zones[index]
+			    availability_zone: network_config["availability_zones"][index]
 			  )
 
 			  subnet_id = subnet.subnet.subnet_id
 
 			  tag_resource(subnet_id,
-			    "Name" => "#{environment}-#{availability_zones[index]}-private-subnet",
+			    "Name" => "#{environment}-#{network_config["availability_zones"][index]}-private-subnet",
 			    "Environment" => environment
 			  )
 

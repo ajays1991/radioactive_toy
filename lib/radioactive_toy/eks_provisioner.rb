@@ -3,15 +3,16 @@ require 'aws-sdk-eks'
 
 module RadioactiveToy
   class EksProvisioner
-    attr_reader :ecs, :autoscaling, :cluster_name, :image_uri, :cpu, :memory, :family, :env_variables, :task_definition_arn, :security_groups, :subnets, :service_name
+    attr_reader :eks, :autoscaling, :cluster_name, :image_uri, :cpu, :memory, :family, :env_variables, :task_definition_arn, :security_groups, :subnets, :config :service_name
 
-    def initialize(region:, cluster_name:, family:, image_uri:, cpu:, memory:, env_variables:, security_groups:,)
-      @ecs = Aws::ECS::Client.new(
+    def initialize(region:, eks_config:, cluster_name:, family:, image_uri:, cpu:, memory:, env_variables:, security_groups:,)
+      @eks = Aws::EKS::Client.new(
         region: region
       )
       @autoscaling = Aws::ApplicationAutoScaling::Client.new(
         region: region
       )
+      @eks_config = eks_config
       @cluster_name = cluster_name
       @image_uri = image_uri
       @cpu = cpu
@@ -33,13 +34,73 @@ module RadioactiveToy
     private
 
     def create_cluster
-      response = ecs.create_cluster(
-        cluster_name: cluster_name
+      response = eks.create_cluster(
+        name: 'rails-cluster',
+        version: '1.33',
+        role_arn: 'arn:aws:iam::824140446440:role/EKSClusterRole',
+        resources_vpc_config: {
+          subnet_ids: [
+            'subnet-123456',
+            'subnet-789012'
+          ],
+          security_group_ids: [
+            'sg-123456'
+          ],
+          endpoint_public_access: true
+        }
       )
 
-      puts "Cluster ARN: #{response.cluster.cluster_arn}"
-      response.cluster.cluster_arn
-    end
+      loop do
+        cluster = eks.describe_cluster(
+          name: 'rails-cluster'
+        ).cluster
+
+        break if cluster.status == 'ACTIVE'
+
+        puts "Waiting..."
+        sleep 30
+      end
+
+      puts response.cluster.arn
+
+      response = eks.create_nodegroup(
+        cluster_name: 'rails-cluster',
+        subnets: subnets,
+        nodegroup_name: 'rails-nodes',
+        node_role: 'arn:aws:iam::824140446440:role/EKSNodeGroupRole',
+        scaling_config: {
+          min_size: 2,
+          max_size: 10,
+          desired_size: 2
+        },
+        instance_types: [
+          't3.medium'
+        ],
+        ami_type: 'AL2023_x86_64_STANDARD',
+        capacity_type: 'ON_DEMAND'
+      )
+
+      puts response.nodegroup.nodegroup_arn
+    endcluster_name: 'rails-cluster',
+        nodegroup_name: 'rails-nodes',
+        node_role: 'arn:aws:iam::824140446440:role/EKSNodeGroupRole',
+        subnets: [
+          'subnet-123456',
+          'subnet-789012'
+        ],
+        scaling_config: {
+          min_size: 2,
+          max_size: 10,
+          desired_size: 2
+        },
+        instance_types: [
+          't3.medium'
+        ],
+        ami_type: 'AL2023_x86_64_STANDARD',
+        capacity_type: 'ON_DEMAND'
+      )
+
+      puts response.nodegroup.nodegroup_arn
 
     def register_task_definition
       response = ecs.register_task_definition(
